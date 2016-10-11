@@ -5,6 +5,7 @@ import sys
 from urlparse import urlparse
 # import time
 
+
 servName = sys.argv[-1]
 filename = sys.argv[-2]
 
