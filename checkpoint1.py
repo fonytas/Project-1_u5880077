@@ -4,32 +4,34 @@
 import socket as skt
 import sys
 from urlparse import urlparse
-import time
+# import time
 
 servName = sys.argv[-1]
 filename = sys.argv[-2]
-# servName = url.netloc+url.path
-serv  = urlparse(servName).hostname
-p = urlparse(servName).path
-port = urlparse(servName)
-print port
 
-servPort = 8080
+parsed_url = urlparse(servName)
+serv  = parsed_url.hostname
+p = parsed_url.path
+findport = parsed_url.port
+port = findport
+
+if findport== None:
+	findport = 80
+
+serv = urlparse(servName).hostname
+p = urlparse(servName).path
 
 def make_http_request(host, obj):
 	NL = "\r\n"
 	return ("GET {o} HTTP/1.1" + NL + "Host: {s}" + NL + NL).format(o=obj, s=host)
 
 clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
-clientSocket.connect((serv, servPort))
+clientSocket.connect((serv, port))
 request_str = make_http_request(serv, p)
-
 clientSocket.send(request_str)
 print "SERVER IS READY..."
 
 f = open(filename , 'wb')
-
-
 
 def findContentLength(info):
 	a = info.split()
@@ -40,10 +42,7 @@ def findContentLength(info):
 		writeFileWithoutContent();
 		f.close()
 		clientSocket.close()
-
 # start1 = time.time()
-
-# count = 0
 while True:
 
 	data_received = clientSocket.recv(1024)
@@ -56,19 +55,13 @@ while True:
 		findLength = findContentLength(header)
 		break
 # end1 = time.time()
-
 # time_taken1 = end1 - start1
-# print total, "<<<<"
-# print "total_count",total_count
-
 # start2 = time.time()
-
 def writeFileWithoutContent():
 	data_received3 = clientSocket.recv(8192)
 	while data_received3:
 		f.write(data_received3)
 		data_received3 = clientSocket.recv(8192)
-
 
 def writeFileWithContent(remaining_data1, findLength1):
 	total = 0
@@ -82,16 +75,9 @@ def writeFileWithContent(remaining_data1, findLength1):
 	clientSocket.close()
 
 writeFileWithContent(remaining_data, findLength)
-
 # end2 = time.time()
-
 # time_taken2 = end2 - start2
-
 # print "time_taken1:", time_taken1
 # print "time_taken2:", time_taken2
-
-
-
-
-print "DONE"
+print "Done loading"
 
