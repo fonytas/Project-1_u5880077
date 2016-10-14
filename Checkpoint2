@@ -36,44 +36,33 @@ class HTTPdownloader():
         if os.path.exists(self.filename):
             self.startResume += os.path.getsize(self.filename) + 1
             self.openSocketForResume()
-            # return self.startResume
-            # self.openSocketForResume()
-            
-            # self.makeResume()
-
-            # print self.startResume
+         
         else:
             self.openSocket()
             self.findHeader()
 
-    # def makeResume(self):
-    #     # self.Range = "Range: bytes=500-900"
-    #     self.Range = "Range: bytes="+"self.startResume"+"-"+"6000000"
-        # self.request_resume = self.request_resume(self.host, self.path, self.Range)
-
     def openSocketForResume(self):
         
         self.Range = "Range: bytes="+str(self.startResume)+"-7967000"
-        #7966904
         self.request_resume = self.resume_request(self.host, self.path, self.Range)
 
-# 
+
         self.clientSocket.connect((self.host, self.port))
         self.clientSocket.send(self.request_resume)
 
+        print "dwqdq"
+
         print "Connected again"
+
 
     def openSocket(self):
         self.clientSocket.connect((self.host, self.port))
         self.clientSocket.send(self.request_str)
-        # self.clientSocket.send(self.request_resume)
-
         print "Connection is ready...."
 
 
     def resume_request(self,host, path,range):
         NL = "\r\n"
-
         return ("GET {p} HTTP/1.1" + NL + "Host: {h}" +NL+self.Range+NL+"Connection: close"+NL+NL).format(p=self.path, h=self.host)
  
     def make_request(self, req_type, what, details, ver="1.1"):
@@ -138,7 +127,6 @@ class HTTPdownloader():
     # def writeInfo(self,modi, etag, content):
 
 
-
     def findContentLength(self):
         splitHeader = self.header.split()
 
@@ -182,6 +170,14 @@ class HTTPdownloader():
             self.f.write(data_received3)
             data_received3 = self.clientSocket.recv(8192)
         self.closeSocket()
+
+    def getInfo(self):
+        print "get me"
+        needYou = open('information.txt', 'r')
+        print file.read()
+#         file = open('newfile.txt', 'r')
+
+# print file.read()
 
  
  

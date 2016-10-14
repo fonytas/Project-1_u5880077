@@ -17,7 +17,7 @@ class HTTPdownloader():
         # Create a TCP socket to host at the right port
         self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
         self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
-        
+
         # Variable
         self.collectHeader = ""
         self.numberOfDataReceived = 0
@@ -36,6 +36,7 @@ class HTTPdownloader():
         if os.path.exists(self.filename):
             self.startResume += os.path.getsize(self.filename) + 1
             self.openSocketForResume()
+
             # return self.startResume
             # self.openSocketForResume()
             
@@ -50,11 +51,17 @@ class HTTPdownloader():
     #     # self.Range = "Range: bytes=500-900"
     #     self.Range = "Range: bytes="+"self.startResume"+"-"+"6000000"
         # self.request_resume = self.request_resume(self.host, self.path, self.Range)
+    def getInfo(self):
+        # print "get me"
+        needYou = open('information.txt', 'r')
+
+        self.allContent = needYou.read().split("\r\n")[-1]
 
     def openSocketForResume(self):
-        
-        self.Range = "Range: bytes="+str(self.startResume)+"-7967000"
-        #7966904
+        self.getInfo()
+
+        self.Range = "Range: bytes="+str(self.startResume)+"-"+self.allContent
+        # self.Range = "Range: bytes="+self.allContent+"-"+str(self.startResume)
         self.request_resume = self.resume_request(self.host, self.path, self.Range)
 
 # 
@@ -62,6 +69,13 @@ class HTTPdownloader():
         self.clientSocket.send(self.request_resume)
 
         print "Connected again"
+
+        # data = self.clientSocket.recv(1024)
+        # while data:
+        #     data = self.clientSocket.recv(1024)
+        #     print data
+    def writeOfReseum(self):
+
 
     def openSocket(self):
         self.clientSocket.connect((self.host, self.port))
@@ -74,8 +88,11 @@ class HTTPdownloader():
     def resume_request(self,host, path,range):
         NL = "\r\n"
 
-        return ("GET {p} HTTP/1.1" + NL + "Host: {h}" +NL+self.Range+NL+"Connection: close"+NL+NL).format(p=self.path, h=self.host)
- 
+        header = ("GET {p} HTTP/1.1" + NL + "Host: {h}" +NL+self.Range+NL+"Connection: close"+NL+NL).format(p=self.path, h=self.host)
+        print header
+        return header
+
+
     def make_request(self, req_type, what, details, ver="1.1"):
         #""" Compose an HTTP request """
         NL = "\r\n"
@@ -97,7 +114,6 @@ class HTTPdownloader():
         data_received = self.clientSocket.recv(1024)
         self.collectHeader += data_received
         self.f = open(self.filename, 'wb')
-
 
         if "\r\n\r\n" in self.collectHeader:
             self.header, self.remaining_data = self.collectHeader.split("\r\n\r\n")
@@ -133,10 +149,9 @@ class HTTPdownloader():
 
         # print "Lastmodi:    ",lastModi, "Etag:   " ,etag,"Conten: " ,content
 
-        return [lastModi, etag, content]
+        return lastModi+"\r\n"+etag+"\r\n"+content
 
     # def writeInfo(self,modi, etag, content):
-
 
 
     def findContentLength(self):
@@ -182,6 +197,8 @@ class HTTPdownloader():
             self.f.write(data_received3)
             data_received3 = self.clientSocket.recv(8192)
         self.closeSocket()
+
+
 
  
  
