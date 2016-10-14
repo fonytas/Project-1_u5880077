@@ -42,7 +42,7 @@ def findContentLength(info):
 		b = a.index("Content-Length:") + 1 #The content-length will always be followed by the no. of conten-length
 		return a[b] #return the no. of content length
 	else: #in case the header does not contain content length 
-		writeFileWithoutContent();
+		writeFileWithoutContent()
 		f.close()
 		clientSocket.close()
 # start1 = time.time()
@@ -61,8 +61,6 @@ while True:
 # end1 = time.time()
 # time_taken1 = end1 - start1
 # start2 = time.time()
-
-
 
 def writeFileWithoutContent():
 	data_received3 = clientSocket.recv(8192)
