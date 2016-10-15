@@ -106,7 +106,7 @@ class HTTPdownloader():
             self.writeFileWithContentLength(self.length)
         else:
             self.writeFileWithoutContent()
-            closeSocket()
+            self.closeSocket()
 
     def writeFileWithContentLength(self, contentLength):
         self.numberOfDataReceived = len(self.remaining_data)
