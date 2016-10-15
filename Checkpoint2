@@ -31,9 +31,7 @@ class HTTPdownloader():
 
     def resume_request(self,host, path,range):
         NL = "\r\n"
-
         header = ("GET {p} HTTP/1.1" + NL + "Host: {h}" +NL+self.Range+NL+"Connection: close"+NL+NL).format(p=self.path, h=self.host)
-        # print header
         return header
 
     def make_request(self, req_type, what, details, ver="1.1"):
@@ -53,13 +51,21 @@ class HTTPdownloader():
             port = DEFAULT_PORT
         return (host, path, port)
 
-    def canResume(self):
+#         >>> import os
+# >>> statinfo = os.stat('somefile.txt')
+# >>> statinfo
+# (33188, 422511L, 769L, 1, 1032, 100, 926L, 1105022698,1105022732, 1105022732)
+# >>> statinfo.st_size
+# 926L
 
+    def canResume(self):
         if os.path.exists(self.filename):
-            self.startResume += os.path.getsize(self.filename) + 1
+            # statinfo = os.stat(self.filename)
+            # statinfo.st_size
+            # self.startResume += os.path.getsize(self.filename) 
+            # self.startResume += statinfo.st_size
             self.resumable = True
             self.openSocketForResume()
-
         else:
             self.openSocket()
             self.findHeader()
@@ -79,13 +85,15 @@ class HTTPdownloader():
             if "\r\n\r\n" in self.collectHeader:
                 self.header, self.remaining_data = self.collectHeader.split("\r\n\r\n")
                 self.f.write(self.remaining_data)
+                # print ">>>",len(self.remaining_data),"<<<"
+                self.numberOfDataReceived += len(self.remaining_data)
+
                 self.keeper = self.findInfoToCompare(self.header)
                 self.findContentLength()
                 break    
 
     def findInfoToCompare(self,header):
         splitHeader = self.header.split()
-        # print splitHeader
 
         if "Last-Modified:" in splitHeader:
             indexOfLastModi = splitHeader.index("Last-Modified:")+1
@@ -105,6 +113,7 @@ class HTTPdownloader():
 
     def findContentLength(self):
         splitHeader = self.header.split()
+        # print splitHeader
 
         if "Content-Length:" in splitHeader:
             indexOfContentlength = splitHeader.index("Content-Length:") + 1
@@ -117,20 +126,29 @@ class HTTPdownloader():
 
     def writeFileWithContentLength(self, contentLength):
         self.numberOfDataReceived = len(self.remaining_data)
+        print self.numberOfDataReceived,">>>>>"
         self.cwd = os.path.abspath('.') + '/'
 
         try:
             while self.numberOfDataReceived < int(self.length):
+                
                 data_received2 = self.clientSocket.recv(8192)
+            
                 self.f.write(data_received2)
                 self.numberOfDataReceived += len(data_received2)
+                   
             try:
                 os.remove(self.cwd+self.infoName)
             except OSError:
                 pass
+
         except KeyboardInterrupt:
-            # print "KEY i am doing exception"
+
+            self.info = open('information.txt', 'ab')
+            self.info.write("\r\n"+str(self.numberOfDataReceived))
+
             self.f.write(str(self.numberOfDataReceived))
+            self.info.close()
 
         finally: 
             self.closeSocket()
@@ -143,24 +161,20 @@ class HTTPdownloader():
         self.closeSocket()   
         
     def writeInfo(self):
-        # print 'Write info.txt'
         self.info = open(self.infoName, 'wb')
         self.info.write(str(self.keeper))
         self.info.close()
+
 
 #######" RESUME PART "#######
 
     def getInfo(self):
         self.needYou = open('information.txt', 'r')
-        # self.allContent = needYou.read().split("\r\n")[-1]
-        self.fileName, self.dateModified, self.numberEtag, self.cl = self.needYou.read().split("\r\n")
+        self.fileName, self.dateModified, self.numberEtag, self.cl, self.resuming_range = self.needYou.read().split("\r\n")
 
     def openSocketForResume(self):
         self.getInfo()
-        # print self.webName, self.dateModified, self.numberEtag, self.cl, "<<<<<"
-
-        self.Range = "Range: bytes="+str(self.startResume)+"-"+self.cl
-        # self.Range = "Range: bytes="+self.allContent+"-"+str(self.startResume)
+        self.Range = "Range: bytes="+str(int(self.resuming_range)+1)+"-"+self.cl
         self.request_resume = self.resume_request(self.host, self.path, self.Range)
 
         self.clientSocket.connect((self.host, self.port))
@@ -171,7 +185,7 @@ class HTTPdownloader():
         self.findHeaderForResume()
 
     def findHeaderForResume(self):
-        data_received = self.clientSocket.recv(1024)
+        data_received = self.clientSocket.recv(8192)
         self.f = open(self.filename, 'ab')
 
         while data_received:
@@ -210,14 +224,19 @@ class HTTPdownloader():
         try:
             while data_receivedF:
                 self.f.write(data_receivedF)
+                if not data_receivedF: break
                 data_receivedF = self.clientSocket.recv(8192)
+
             try:
                 os.remove(self.cwd+self.infoName)
             except OSError:
                 pass
         except KeyboardInterrupt:
-            # print "KEY i am doing exception"
+            # print self.numberOfDataReceived,"<<<<<<<<"
+    
             self.f.write(str(self.numberOfDataReceived))
+
+
 
         finally: 
             self.closeSocket()
@@ -226,7 +245,6 @@ class HTTPdownloader():
         self.f.close()
         self.clientSocket.close()
         print "Done loading"
-
 
 servName = sys.argv[-1]
 if __name__ == '__main__':
