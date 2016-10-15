@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-### http://www.w3.org/Protocols/rfc2616/rfc2616.html   
-
 import asyncore
 import socket as skt
 import sys
@@ -19,6 +17,7 @@ class HTTPdownloader():
         self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
 
         # Variable
+        self.collectHeader2 = ""
         self.collectHeader = ""
         self.numberOfDataReceived = 0
         self.servName = sys.argv[-1]
@@ -51,19 +50,8 @@ class HTTPdownloader():
             port = DEFAULT_PORT
         return (host, path, port)
 
-#         >>> import os
-# >>> statinfo = os.stat('somefile.txt')
-# >>> statinfo
-# (33188, 422511L, 769L, 1, 1032, 100, 926L, 1105022698,1105022732, 1105022732)
-# >>> statinfo.st_size
-# 926L
-
     def canResume(self):
-        if os.path.exists(self.filename):
-            # statinfo = os.stat(self.filename)
-            # statinfo.st_size
-            # self.startResume += os.path.getsize(self.filename) 
-            # self.startResume += statinfo.st_size
+        if os.path.exists(self.filename) and os.path.exists("information.txt"):
             self.resumable = True
             self.openSocketForResume()
         else:
@@ -85,9 +73,7 @@ class HTTPdownloader():
             if "\r\n\r\n" in self.collectHeader:
                 self.header, self.remaining_data = self.collectHeader.split("\r\n\r\n")
                 self.f.write(self.remaining_data)
-                # print ">>>",len(self.remaining_data),"<<<"
                 self.numberOfDataReceived += len(self.remaining_data)
-
                 self.keeper = self.findInfoToCompare(self.header)
                 self.findContentLength()
                 break    
@@ -113,8 +99,6 @@ class HTTPdownloader():
 
     def findContentLength(self):
         splitHeader = self.header.split()
-        # print splitHeader
-
         if "Content-Length:" in splitHeader:
             indexOfContentlength = splitHeader.index("Content-Length:") + 1
             self.length = splitHeader[indexOfContentlength]
@@ -126,7 +110,6 @@ class HTTPdownloader():
 
     def writeFileWithContentLength(self, contentLength):
         self.numberOfDataReceived = len(self.remaining_data)
-        print self.numberOfDataReceived,">>>>>"
         self.cwd = os.path.abspath('.') + '/'
 
         try:
@@ -139,16 +122,18 @@ class HTTPdownloader():
                    
             try:
                 os.remove(self.cwd+self.infoName)
+                print "DONE LOADING"
             except OSError:
                 pass
 
-        except KeyboardInterrupt:
-
+        except KeyboardInterrupt,IOError:
+            print "Connection error..."
             self.info = open('information.txt', 'ab')
             self.info.write("\r\n"+str(self.numberOfDataReceived))
 
-            self.f.write(str(self.numberOfDataReceived))
+            # self.info.write(str(self.numberOfDataReceived))
             self.info.close()
+            
 
         finally: 
             self.closeSocket()
@@ -165,7 +150,6 @@ class HTTPdownloader():
         self.info.write(str(self.keeper))
         self.info.close()
 
-
 #######" RESUME PART "#######
 
     def getInfo(self):
@@ -174,7 +158,7 @@ class HTTPdownloader():
 
     def openSocketForResume(self):
         self.getInfo()
-        self.Range = "Range: bytes="+str(int(self.resuming_range)+1)+"-"+self.cl
+        self.Range = "Range: bytes="+str(int(self.resuming_range))+"-"+self.cl
         self.request_resume = self.resume_request(self.host, self.path, self.Range)
 
         self.clientSocket.connect((self.host, self.port))
@@ -189,10 +173,10 @@ class HTTPdownloader():
         self.f = open(self.filename, 'ab')
 
         while data_received:
-            self.collectHeader += data_received
+            self.collectHeader2 += data_received
 
-            if "\r\n\r\n" in self.collectHeader:
-                self.header, self.remaining_data = self.collectHeader.split("\r\n\r\n")
+            if "\r\n\r\n" in self.collectHeader2:
+                self.header, self.remaining_data = self.collectHeader2.split("\r\n\r\n")
                 self.f.write(self.remaining_data)
                 break
 
@@ -231,25 +215,17 @@ class HTTPdownloader():
                 os.remove(self.cwd+self.infoName)
             except OSError:
                 pass
-        except KeyboardInterrupt:
-            # print self.numberOfDataReceived,"<<<<<<<<"
-    
-            self.f.write(str(self.numberOfDataReceived))
-
-
-
+        except KeyboardInterrupt:    
+            pass
         finally: 
             self.closeSocket()
+            print "DONE LOADING"
 
     def closeSocket(self):
         self.f.close()
         self.clientSocket.close()
-        print "Done loading"
 
 servName = sys.argv[-1]
 if __name__ == '__main__':
     clients = [HTTPdownloader(servName)]
     asyncore.loop()
-
-
-
