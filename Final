@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+
+
+import asyncore
+import socket as skt
+import sys
+import os
+from urlparse import urlparse
+import thread
+
+class HTTPdownloader():
+
+    def __init__(self, url):
+
+
+        self.host, self.path, self.port = self.parse_url(url)
+        self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+        self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
+
+        #Variable 
+        self.header = ""
+
+
+        #Functions
+        self.openSocket()
+        self.findNumberOfThread()
+        self.findHeader()
+        # self.findContentLength()
+        self.findRange()
+
+        self.closeSocket()
+
+
+    def findNumberOfThread(self):
+        number = list(range(10))
+
+        if sys.argv[-2] in str(number):
+            self.numberOfThread = int(sys.argv[-2])
+            self.fileName = sys.argv[-4]
+        else:
+            self.fileName = sys.argv[-3]
+            self.numberOfThread = 5
+
+    def findHeader(self):
+
+        collectHeader = ""
+        data_receive = self.clientSocket.recv(1)
+
+        while data_receive:
+            collectHeader += data_receive
+            data_receive = self.clientSocket.recv(1)
+
+            if "\r\n\r\n" in collectHeader:
+                self.header, remain = collectHeader.split("\r\n\r\n")
+                return self.header
+
+    def findContentLength(self):
+        splitHeader = self.header.split()
+
+        if "Content-Length:" in splitHeader:
+            indexOfContentlength = splitHeader.index("Content-Length:") + 1
+            numberOfContentlength = splitHeader[indexOfContentlength]
+            return numberOfContentlength
+
+    def findRange(self):
+        cl = int(self.findContentLength())
+        byteInThread = cl//self.numberOfThread
+        # print self.numberOfThread,"<<"
+
+
+    def openSocket(self):
+        self.clientSocket.connect((self.host, self.port))
+        self.clientSocket.send(self.request_str)
+        print "Connection is ready...."
+
+    def closeSocket(self):
+        self.clientSocket.close()
+
+    def parse_url(self, url, DEFAULT_PORT=80):
+        #""" Parse a given url into host, path, and port. Use DEFAULT_PORT (80) if unspecified."""
+        parsed_url = urlparse(url)
+        host, path, port = (parsed_url.hostname, parsed_url.path, parsed_url.port)
+        if not port:
+            port = DEFAULT_PORT
+        return (host, path, port)
+        
+
+    def make_request(self, req_type, what, details, ver="1.1"):
+        #""" Compose an HTTP request """
+        NL = "\r\n"
+        req_line = "{verb} {w} HTTP/{v}".format(verb=req_type, w=what, v=ver)
+        details = ["{name}: {v}".format(name=n,v=v) for (n,v) in details.iteritems()]
+        detail_lines = NL.join(details)
+        full_request = "".join([req_line, NL, detail_lines, NL, NL])
+        return full_request
+
+
+servName = sys.argv[-1]
+if __name__ == '__main__':
+    clients = [HTTPdownloader(servName)]
+    asyncore.loop()
+
+

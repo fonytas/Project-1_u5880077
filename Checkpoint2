@@ -111,7 +111,7 @@ class HTTPdownloader():
     def writeFileWithContentLength(self, contentLength):
         self.numberOfDataReceived = len(self.remaining_data)
         self.cwd = os.path.abspath('.') + '/'
-
+        
         try:
             while self.numberOfDataReceived < int(self.length):
                 
