@@ -6,66 +6,165 @@ import socket as skt
 import sys
 import os
 from urlparse import urlparse
-import thread
+import threading
 
 class HTTPdownloader():
 
     def __init__(self, url):
 
+        self.servName = sys.argv[-1]
 
         self.host, self.path, self.port = self.parse_url(url)
         self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
         self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
-
-        #Variable 
-        self.header = ""
+        # self.fonytas = open("fonytas.txt", 'wb')
 
 
+        self.doThread = False
         #Functions
-        self.openSocket()
+        # self.openSocket()
         self.findNumberOfThread()
-        self.findHeader()
+        # self.findHeader()
+        # self.getInfo()
+
         # self.findContentLength()
-        self.findRange()
+        # self.findRange()
+        # self.tellRange()
 
-        self.closeSocket()
+        # self.closeSocket()
+        self.whatToDo()
 
+
+    def whatToDo(self):
+        if self.doThread == True:
+            self.openSocket()
+            self.findRange()
+            self.closeSocket()
+            self.tellRange()
+        else: pass ### do normal task ###
 
     def findNumberOfThread(self):
-        number = list(range(10))
+        number = list(range(100))
 
         if sys.argv[-2] in str(number):
             self.numberOfThread = int(sys.argv[-2])
             self.fileName = sys.argv[-4]
-        else:
+            self.doThread = True
+        elif sys.argv[-2] == "-c":
             self.fileName = sys.argv[-3]
             self.numberOfThread = 5
+            self.doThread = True
+
+        else:
+            pass  #### DO NORMAL TASK
 
     def findHeader(self):
-
         collectHeader = ""
         data_receive = self.clientSocket.recv(1)
 
         while data_receive:
             collectHeader += data_receive
+            if "\r\n\r\n" in collectHeader:
+                header, remain = collectHeader.split("\r\n\r\n")
+                break
             data_receive = self.clientSocket.recv(1)
 
-            if "\r\n\r\n" in collectHeader:
-                self.header, remain = collectHeader.split("\r\n\r\n")
-                return self.header
+        return header
 
-    def findContentLength(self):
-        splitHeader = self.header.split()
+    def getInfo(self):
+        header = self.findHeader()
+        data = header.replace("\n ", " ").splitlines()
+        headers = {}
+        for line in data:
+            split_here = line.find(":")
+            headers[line[:split_here]] = line[split_here+2:]
+        # print headers.values()
+        return headers
 
-        if "Content-Length:" in splitHeader:
-            indexOfContentlength = splitHeader.index("Content-Length:") + 1
-            numberOfContentlength = splitHeader[indexOfContentlength]
-            return numberOfContentlength
 
     def findRange(self):
-        cl = int(self.findContentLength())
-        byteInThread = cl//self.numberOfThread
-        # print self.numberOfThread,"<<"
+        self.totalCL = int(self.getInfo()["Content-Length"])
+        print "TOTAL: ", self.totalCL
+
+        self.byteInThread = self.totalCL//self.numberOfThread
+        print "self.numberOfThread: ", self.numberOfThread
+        print "byte in each thread: ", self.byteInThread
+
+    def tellRange(self):
+        count = 1
+        start = 0
+        endDownload = 0
+        begin = 0
+
+        while count <= self.numberOfThread:
+            whereToBegin = start
+            start += self.byteInThread
+            if count == self.numberOfThread: 
+                endDownload = self.totalCL-1
+            else: endDownload = start-1
+            count += 1
+
+            self.sendRange = "Range: bytes="+str(int(whereToBegin))+"-"+str(endDownload)
+            print self.sendRange
+            self.openSocketForThread()
+
+    def openSocketForThread(self):
+
+        self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
+        self.request_resume = self.resume_request(self.host, self.path,self.sendRange)
+        self.clientSocket.connect((self.host, self.port))
+        self.clientSocket.send(self.request_resume)
+
+        # self.getInfo()
+
+
+    
+
+
+
+
+
+
+
+    # def headerForThread(self):
+    #     collectHeader = ""
+    #     data_receive = self.clientSocket.recv(1)
+
+    #     while data_receive:
+    #         collectHeader += data_receive
+    #         if "\r\n\r\n" in collectHeader:
+    #             header, remain = collectHeader.split("\r\n\r\n")
+    #             break
+    #         else: data_receive = self.clientSocket.recv(1)
+    #     return header
+
+    # def getInfoForThread(self):
+    #     header = self.headerForThread()
+    #     data = header.replace("\n ", " ").splitlines()
+    #     headers = {}
+    #     for line in data:
+    #         split_here = line.find(":")
+    #         headers[line[:split_here]] = line[split_here+2:]
+    #     # print headers.values()
+    #     return headers
+
+        
+
+
+
+
+# data = header.replace("\n ", " ").splitlines()
+#     headers = {}
+#     for line in data:
+#         split_here = line.find(":")
+#         headers[line[:split_here]] = line[split_here:]
+
+
+
+    def resume_request(self, host, path, rangebyte):
+        NL = "\r\n"
+        header = ("GET {p} HTTP/1.1" + NL + "Host: {h}" +NL+rangebyte+NL+"Connection: close"+NL+NL).format(p=self.path, h=self.host)
+        return header
 
 
     def openSocket(self):
@@ -83,7 +182,7 @@ class HTTPdownloader():
         if not port:
             port = DEFAULT_PORT
         return (host, path, port)
-        
+
 
     def make_request(self, req_type, what, details, ver="1.1"):
         #""" Compose an HTTP request """
@@ -93,6 +192,8 @@ class HTTPdownloader():
         detail_lines = NL.join(details)
         full_request = "".join([req_line, NL, detail_lines, NL, NL])
         return full_request
+
+
 
 
 servName = sys.argv[-1]
