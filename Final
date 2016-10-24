@@ -17,31 +17,122 @@ class HTTPdownloader():
         self.host, self.path, self.port = self.parse_url(url)
         self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
         self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
-        # self.fonytas = open("fonytas.txt", 'wb')
 
+        self.infoName = "information.txt"
 
         self.doThread = False
-        #Functions
-        # self.openSocket()
+        self.resumable = False
+    
         self.findNumberOfThread()
-        # self.findHeader()
-        # self.getInfo()
 
-        # self.findContentLength()
-        # self.findRange()
-        # self.tellRange()
-
-        # self.closeSocket()
         self.whatToDo()
-
 
     def whatToDo(self):
         if self.doThread == True:
+            self.f = open(self.fileName, 'wb')
             self.openSocket()
             self.findRange()
             self.closeSocket()
             self.tellRange()
-        else: pass ### do normal task ###
+            self.f.close()
+        else: ### do normal task ###
+
+            self.canResume()
+            if self.resumable == False:
+                self.f = open(self.fileName, 'wb')
+                self.openSocket()
+                self.writingFile()
+            else: pass
+
+    def canResume(self):
+        if os.path.exists(self.fileName) and os.path.exists(self.infoName):
+            self.resumable = True
+            self.openFile()
+            self.openSocketForResume()
+            self.compareData()
+        else: pass
+
+
+    def openFile(self): 
+        openInfo = open(self.infoName, 'r')
+        self.fileName2, self.dateModified, self.numberEtag, self.cl, self.resuming_range = openInfo.read().split("\r\n")
+
+    def openSocketForResume(self):
+
+        self.Range = "Range: bytes="+str(int(self.resuming_range))+"-"+self.cl
+        self.request_resume = self.resume_request(self.host, self.path, self.Range)
+
+        self.clientSocket.connect((self.host, self.port))
+        self.clientSocket.send(self.request_resume)
+
+        print "Connected again"
+
+    def writeFileForResume(self):
+        print "Resumming in progress..."
+        self.f = open(self.fileName, 'ab')
+        self.cwd = os.path.abspath('.') + '/'
+
+        data_received = self.clientSocket.recv(8192)
+
+        try: 
+            while data_received:
+                self.f.write(data_received)
+                if not data_received: break
+                data_received = self.clientSocket.recv(8192)
+
+                try:
+                    os.remove(self.cwd+self.infoName)
+                except OSError:
+                    pass
+        except KeyboardInterrupt: pass
+        finally:
+            self.closeSocket()
+            print "DONW LOADING"
+
+
+    def compareData(self):
+        head = self.getInfo(self.findHeader())
+
+        if (self.fileName2 == self.fileName and self.dateModified == head["Last-Modified"] and self.numberEtag == head["ETag"]):
+            self.writeFileForResume()
+        else: 
+            print "ERROR..... The file that you are looking for does not exist"
+
+
+    def writingFile(self):
+        head = self.getInfo(self.findHeader())
+        if "Content-Length" in head.keys():
+
+            information = open(self.infoName, 'wb')
+            info = self.fileName+"\r\n"+head["Last-Modified"]+"\r\n"+head["ETag"]+"\r\n"+head["Content-Length"]
+            information.write(info)
+
+            numberOfDataReceived = 0
+            self.cwd = os.path.abspath('.') + '/'
+
+            try: 
+                while numberOfDataReceived < int(head["Content-Length"]):
+                    data_received = self.clientSocket.recv(8192)
+                    self.f.write(data_received)
+                    numberOfDataReceived += len(data_received)
+                try: 
+                    os.remove(self.cwd+self.infoName)
+                    print "DONE LOADING"
+                except OSError:
+                    pass
+            except KeyboardInterrupt, IOError:
+                print "Connection error...We will re-download again"
+                information = open(self.infoName, 'ab')
+                information.write("\r\n"+str(numberOfDataReceived))
+                information.close()
+
+        else: 
+            data_received = self.clientSocket.recv(8192)
+            while data_received:
+                self.f.write(data_received)
+                data_received = self.clientSocket.recv(8192)
+            self.closeSocket()
+
 
     def findNumberOfThread(self):
         number = list(range(100))
@@ -56,7 +147,7 @@ class HTTPdownloader():
             self.doThread = True
 
         else:
-            pass  #### DO NORMAL TASK
+            self.fileName = sys.argv[-2] #### DO NORMAL TASK
 
     def findHeader(self):
         collectHeader = ""
@@ -71,8 +162,8 @@ class HTTPdownloader():
 
         return header
 
-    def getInfo(self):
-        header = self.findHeader()
+    def getInfo(self, header):
+        # header = self.findHeader()
         data = header.replace("\n ", " ").splitlines()
         headers = {}
         for line in data:
@@ -83,7 +174,13 @@ class HTTPdownloader():
 
 
     def findRange(self):
-        self.totalCL = int(self.getInfo()["Content-Length"])
+        gg = self.findHeader()
+        allInfo = self.getInfo(gg)
+
+        print "<<>infooooo>>>", allInfo
+
+        # self.totalCL = int(self.getInfo()["Content-Length"])
+        self.totalCL = int(allInfo["Content-Length"])
         print "TOTAL: ", self.totalCL
 
         self.byteInThread = self.totalCL//self.numberOfThread
@@ -105,8 +202,9 @@ class HTTPdownloader():
             count += 1
 
             self.sendRange = "Range: bytes="+str(int(whereToBegin))+"-"+str(endDownload)
-            print self.sendRange
+            print "self.sendRange>>  ",self.sendRange
             self.openSocketForThread()
+            self.closeSocket()
 
     def openSocketForThread(self):
 
@@ -114,50 +212,14 @@ class HTTPdownloader():
         self.request_resume = self.resume_request(self.host, self.path,self.sendRange)
         self.clientSocket.connect((self.host, self.port))
         self.clientSocket.send(self.request_resume)
+        self.writeFile()
 
-        # self.getInfo()
-
-
-    
-
-
-
-
-
-
-
-    # def headerForThread(self):
-    #     collectHeader = ""
-    #     data_receive = self.clientSocket.recv(1)
-
-    #     while data_receive:
-    #         collectHeader += data_receive
-    #         if "\r\n\r\n" in collectHeader:
-    #             header, remain = collectHeader.split("\r\n\r\n")
-    #             break
-    #         else: data_receive = self.clientSocket.recv(1)
-    #     return header
-
-    # def getInfoForThread(self):
-    #     header = self.headerForThread()
-    #     data = header.replace("\n ", " ").splitlines()
-    #     headers = {}
-    #     for line in data:
-    #         split_here = line.find(":")
-    #         headers[line[:split_here]] = line[split_here+2:]
-    #     # print headers.values()
-    #     return headers
-
-        
-
-
-
-
-# data = header.replace("\n ", " ").splitlines()
-#     headers = {}
-#     for line in data:
-#         split_here = line.find(":")
-#         headers[line[:split_here]] = line[split_here:]
+    def writeFile(self):
+        self.getInfo(self.findHeader())
+        data_receive = self.clientSocket.recv(8192)
+        while data_receive:
+            self.f.write(data_receive)
+            data_receive = self.clientSocket.recv(8192)
 
 
 
