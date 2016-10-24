@@ -19,7 +19,6 @@ class HTTPdownloader():
         self.request_str = self.make_request("GET", self.path, {"HOST": self.host, "Connection": "close"})
 
         self.infoName = "information.txt"
-
         self.doThread = False
         self.resumable = False
     
@@ -35,6 +34,8 @@ class HTTPdownloader():
             self.closeSocket()
             self.tellRange()
             self.f.close()
+            self.closeSocket()
+            print "DONE LOADING"
         else: ### do normal task ###
 
             self.canResume()
@@ -163,13 +164,11 @@ class HTTPdownloader():
         return header
 
     def getInfo(self, header):
-        # header = self.findHeader()
         data = header.replace("\n ", " ").splitlines()
         headers = {}
         for line in data:
             split_here = line.find(":")
             headers[line[:split_here]] = line[split_here+2:]
-        # print headers.values()
         return headers
 
 
@@ -177,51 +176,71 @@ class HTTPdownloader():
         gg = self.findHeader()
         allInfo = self.getInfo(gg)
 
-        print "<<>infooooo>>>", allInfo
+        # print "<<>infooooo>>>", allInfo
 
-        # self.totalCL = int(self.getInfo()["Content-Length"])
         self.totalCL = int(allInfo["Content-Length"])
-        print "TOTAL: ", self.totalCL
+        # print "TOTAL: ", self.totalCL
 
         self.byteInThread = self.totalCL//self.numberOfThread
-        print "self.numberOfThread: ", self.numberOfThread
-        print "byte in each thread: ", self.byteInThread
+        # print "self.numberOfThread: ", self.numberOfThread
+        # print "byte in each thread: ", self.byteInThread
 
     def tellRange(self):
         count = 1
         start = 0
-        endDownload = 0
+        self.endDownload = 0
         begin = 0
+        self.lstWhereToBegin = []
+        self.lstEndDownload = []
 
         while count <= self.numberOfThread:
-            whereToBegin = start
+            self.whereToBegin = start
             start += self.byteInThread
             if count == self.numberOfThread: 
-                endDownload = self.totalCL-1
-            else: endDownload = start-1
+                self.endDownload = self.totalCL-1
+            else: self.endDownload = start-1
             count += 1
 
-            self.sendRange = "Range: bytes="+str(int(whereToBegin))+"-"+str(endDownload)
-            print "self.sendRange>>  ",self.sendRange
-            self.openSocketForThread()
-            self.closeSocket()
+            self.lstWhereToBegin.append(self.whereToBegin)
+            self.lstEndDownload.append(self.endDownload)
 
-    def openSocketForThread(self):
+            self.threadDownload()
 
+    def threadDownload(self):
+
+        Thread = []
+        for i,j,k in zip(self.lstWhereToBegin, self.lstEndDownload, range(1, self.numberOfThread+1)):
+
+            t = threading.Thread(target=self.openSocketForThread, args=(i,j,k))
+            Thread.append(t)
+            # print("threading.Thread(target=self.openSocketForThread, argvs=({a},{b},{c}").format(a=i,b=j,c=k)
+            t.start()
+            z = threading.activeCount()
+            # print "z>>>>>>>>>",z
+
+        for i in Thread:
+            i.join()
+
+        self.writeFile()
+
+    def openSocketForThread(self,i,j,k):
+
+        self.sendRange = "Range: bytes="+str(int(i))+"-"+str(j)
         self.clientSocket = skt.socket(skt.AF_INET, skt.SOCK_STREAM)
         self.request_resume = self.resume_request(self.host, self.path,self.sendRange)
         self.clientSocket.connect((self.host, self.port))
-        self.clientSocket.send(self.request_resume)
-        self.writeFile()
+        try:
+            self.clientSocket.send(self.request_resume)
+        except Exception, e:
+            pass
 
     def writeFile(self):
+
         self.getInfo(self.findHeader())
         data_receive = self.clientSocket.recv(8192)
         while data_receive:
             self.f.write(data_receive)
             data_receive = self.clientSocket.recv(8192)
-
-
 
     def resume_request(self, host, path, rangebyte):
         NL = "\r\n"
@@ -245,7 +264,6 @@ class HTTPdownloader():
             port = DEFAULT_PORT
         return (host, path, port)
 
-
     def make_request(self, req_type, what, details, ver="1.1"):
         #""" Compose an HTTP request """
         NL = "\r\n"
@@ -254,8 +272,6 @@ class HTTPdownloader():
         detail_lines = NL.join(details)
         full_request = "".join([req_line, NL, detail_lines, NL, NL])
         return full_request
-
-
 
 
 servName = sys.argv[-1]
