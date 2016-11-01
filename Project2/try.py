@@ -1,13 +1,8 @@
-#!/usr/bin/env python
-
-
 import asyncore, socket
 import logging
 from cStringIO import StringIO
 from urlparse import urlparse
 import sys
-import time
-
 
 def make_request(req_type, what, details, ver="1.1"):
     """ Compose an HTTP request """
@@ -35,18 +30,16 @@ def parse_url(url, DEFAULT_PORT=80):
     return (host, path, port)
 
 
+# self.maxConcurrent = int(sys.argv[-2])
+# self.numRequests = int(sys.argv[-4])
+
 class HTTPClient(asyncore.dispatcher):
     ## Size of the buffer for each recv
     RECV_CHUNK_SIZE = 8192
 
-    def __init__(self, url, num,count):
+    def __init__(self, url):
         asyncore.dispatcher.__init__(self)
-        self.url = url
-        host, path, port = parse_url(self.url)
-        self.num = num
-        self.start = 0
-        self.end = 0
-        self.count = count
+        host, path, port = parse_url(url)
 
         # Create a logger
         self.logger = logging.getLogger(url)
@@ -63,7 +56,7 @@ class HTTPClient(asyncore.dispatcher):
         # Make an initial request & deliver it
         request = make_request('GET', path,
             {'Host': host,
-             'Connection': 'close'}
+             'Connection': 'keep-alive'}
         )
         self.write(request)
 
@@ -71,38 +64,12 @@ class HTTPClient(asyncore.dispatcher):
         """ Schedule to deliver data over the socket """
         self.sendbuf += data
 
-
-
     def handle_connect(self):
-        # start = time.handle_connect()
-        self.start = time.time()
-
-        print "connect>>>>>>>>", self.num
-        # activate when  something connect
-        # self.logger.debug("Connected")
+        self.logger.debug("Connected")
 
     def handle_close(self):
-        self.end = time.time()
-        totalTime = self.end-self.start
-
-
-
-        print "CLOSE>>>>>", self.num," Time: ", totalTime
-        # what to do after close connect
-        # self.logger.debug("Disconnected")
-        # self.close()
-
-
-        if self.count == 0: self.close()
-        else:
-            print "self.count: ", self.count
-
-
-            
-            HTTPClient.__init__(self,self.url,self.num, self.count)
-            self.count -= 1
-
-
+        self.logger.debug("Disconnected")
+        self.close()
 
     def writeable(self):
         """ Check if there is anything to send """
@@ -112,34 +79,25 @@ class HTTPClient(asyncore.dispatcher):
         bytes_sent = self.send(self.sendbuf)
         self.sendbuf = self.sendbuf[bytes_sent:]
 
-
     def handle_read(self):
         recv_bytes = self.recv(HTTPClient.RECV_CHUNK_SIZE)
-        # self.logger.debug("recvd {} bytes".format(len(recv_bytes)))
+        self.logger.debug("recvd {} bytes".format(len(recv_bytes)))
         self.recvbuf.write(recv_bytes)
 
-        # print "recv_bytes>>>>",recv_bytes, ": ",self.num
-        # print "self.num: ",self.num
 
 
-maxConcurrent = int(sys.argv[-2])
-numRequests = int(sys.argv[-4])
-servName = sys.argv[-1]
-
-
-
-requestsInOneTime = numRequests//maxConcurrent
-# print requestsInOneTime, "HIII"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
         format="%(asctime)-15s %(name)s: %(message)s"
     )
-    for i in range(maxConcurrent):
-
-        HTTPClient(servName, i, requestsInOneTime)
-     
+    clients = [
+        HTTPClient("http://10.27.8.20:8080/primes11.txt"),
+        HTTPClient("http://10.27.8.20:8080/primes11.txt"),
+        HTTPClient("http://10.27.8.20:8080/primes11.txt"),
+        HTTPClient("http://10.27.8.20:8080/primes11.txt"),
+        # HTTPClient("http://10.27.8.20:8080/primes1.txt"),
+        # HTTPClient("http://10.27.8.20:8080/primeNumber.hamuel"),
+        # HTTPClient("http://www.cnn.com/"),
+    ]
     asyncore.loop()
-
-
-

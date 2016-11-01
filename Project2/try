@@ -129,7 +129,7 @@ servName = sys.argv[-1]
 
 
 requestsInOneTime = numRequests//maxConcurrent
-# print requestsInOneTime, "HIII"
+print requestsInOneTime, "HIII"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
