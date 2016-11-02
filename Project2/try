@@ -21,7 +21,7 @@ def make_request(req_type, what, details, ver="1.1"):
     detail_lines = NL.join(details)
     full_request = "".join([req_line, NL, detail_lines, NL, NL])
     return full_request
-
+    
 def parse_url(url, DEFAULT_PORT=80):
     """ Parse a given url into host, path, and port.
         Use DEFAULT_PORT (80) if unspecified.
@@ -47,31 +47,70 @@ class HTTPClient(asyncore.dispatcher):
         self.start = 0
         self.end = 0
         self.count = count
+# maxConcurrent = int(sys.argv[-2])
+# numRequests = int(sys.argv[-4])
+# servName = sys.argv[-1]
+
+# requestsInOneTime = numRequests//maxConcurrent
+        concur = int(sys.argv[-2])
+        req = int(sys.argv[-4])
+        totalCount = req//concur
 
         # Create a logger
         self.logger = logging.getLogger(url)
 
+        if totalCount == self.count:
         # Create a TCP socket to host at the right port
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connect((host, port))
+            self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.connect((host, port))
 
-        self.host = host
-        self.path = path
+            self.host = host
 
         # Create recv buffer and send buffer
-        (self.recvbuf, self.sendbuf) = (StringIO(), "")
+            (self.recvbuf, self.sendbuf) = (StringIO(), "")
 
         # Make an initial request & deliver it
-        request = make_request('GET', path,
-            {'Host': host,
-             'Connection': 'keep-alive'}
-        )
-        self.count-=1
-        self.write(request)
+            request = make_request('GET', path,
+                {'Host': host,
+                'Connection': 'close'}
+            )
+            self.write(request)
+
+        elif self.count == 1:
+
+            self.host = host
+
+        # Create recv buffer and send buffer
+            (self.recvbuf, self.sendbuf) = (StringIO(), "")
+
+        # Make an initial request & deliver it
+            request = make_request('GET', path,
+                {'Host': host,
+                'Connection': 'close'}
+            )
+            self.write(request)
+
+        else:
+            print "this is else"
+            self.host = host
+
+        # Create recv buffer and send buffer
+            (self.recvbuf, self.sendbuf) = (StringIO(), "")
+
+        # Make an initial request & deliver it
+            request = make_request('GET', path,
+                {'Host': host,
+                'Connection': 'close'}
+            )
+            self.write(request)
+
+
+
 
     def write(self, data):
         """ Schedule to deliver data over the socket """
         self.sendbuf += data
+
 
     def handle_connect(self):
         # start = time.handle_connect()
@@ -79,17 +118,32 @@ class HTTPClient(asyncore.dispatcher):
 
         print "connect>>>>>>>>", self.num
         # activate when  something connect
-        self.logger.debug("Connected")
+        # self.logger.debug("Connected")
 
     def handle_close(self):
         self.end = time.time()
         totalTime = self.end-self.start
-        print "CLOSE>>>>>", self.num," Time: ", totalTime
-        self.logger.debug("Disconnected")
-        self.close()
 
 
-    def writable(self):
+        print "handle_CLOSE>>>>>", self.num," Time: ", totalTime
+        # what to do after close connect
+        # self.logger.debug("Disconnected")
+        # self.close()
+
+
+        if self.count == 0: 
+            print ">>>CLOSE<<<: ", self.num
+            self.close()
+        else:
+            print "self.count: ", self.count
+            self.count -= 1
+
+       
+            HTTPClient.__init__(self,self.url,self.num, self.count)
+
+
+
+    def writeable(self):
         """ Check if there is anything to send """
         return len(self.sendbuf) > 0
 
@@ -97,59 +151,32 @@ class HTTPClient(asyncore.dispatcher):
         bytes_sent = self.send(self.sendbuf)
         self.sendbuf = self.sendbuf[bytes_sent:]
 
-    def getInfo(self, header):
-        data = header.replace("\n ", " ").splitlines()
-        headers = {}
-        for line in data:
-            split_here = line.find(":")
-            headers[line[:split_here]] = line[split_here+2:]
-        return headers
-
-    def handle_error(self):
-        pass
 
     def handle_read(self):
         recv_bytes = self.recv(HTTPClient.RECV_CHUNK_SIZE)
-        # self.logger.debug("{} recvd {} bytes".format(self.num,len(recv_bytes)))
-        if self.num == self.count:
-            head, data = recv_bytes.split("\r\n\r\n")
-            a= self.getInfo(head)
-            # print "head: %s endhead" %(head)
-            print "This is content-length: ",a["Content-Length"]
-
-
+        # self.logger.debug("recvd {} bytes".format(len(recv_bytes)))
         self.recvbuf.write(recv_bytes)
-        self.count -= 1
-        if self.count == 1:
-            request = make_request('GET', self.path,
-                {'Host': self.host,
-                 'Connection': 'close'}
-            )
-            self.write(request)
-        elif self.count>1:
-            request = make_request('GET', self.path,
-                {'Host': self.host,
-                 'Connection': 'keep-alive'}
-            )
-            self.write(request)
+
         # print "recv_bytes>>>>",recv_bytes, ": ",self.num
-        print "self.num: ",self.num
+        # print "self.num: ",self.num
 
 
+maxConcurrent = int(sys.argv[-2])
+numRequests = int(sys.argv[-4])
+servName = sys.argv[-1]
 
+requestsInOneTime = numRequests//maxConcurrent
+# totalCount = requestsInOneTime
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
         format="%(asctime)-15s %(name)s: %(message)s"
     )
-    maxConcurrent = int(sys.argv[-2])
-    numRequests = int(sys.argv[-4])
-    servName = sys.argv[-1]
-    requestsInOneTime = numRequests//maxConcurrent
-    print requestsInOneTime, "HIII"
-    lst=[]
-    for i in range(maxConcurrent):
+    for num in range(maxConcurrent):
 
-        lst.append(HTTPClient(servName, i, requestsInOneTime))
-
+        HTTPClient(servName, num, requestsInOneTime)
+     
     asyncore.loop()
+
+
+
